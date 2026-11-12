@@ -31,8 +31,20 @@ final class Formatter
 	private const float LONGITUDE_LIMIT = 180.0;
 
 	/**
-	 * @param int|null $decimalPlaces decimal places of the degrees (3 to 10, 5 by default), or of the seconds
-	 * in degrees, minutes and seconds (0 to 3, 2 by default)
+	 * @param int $decimalPlaces default decimal places of the degrees, 3 to 10
+	 * @param int $secondsDecimalPlaces default decimal places of the seconds in degrees, minutes and seconds, 0 to 3
+	 */
+	public function __construct(
+		private readonly int $decimalPlaces = self::DEFAULT_DECIMAL_DEGREES_PLACES,
+		private readonly int $secondsDecimalPlaces = self::DEFAULT_SECONDS_PLACES,
+	) {
+		$this->checkDecimalDegreesPlaces($decimalPlaces);
+		$this->checkSecondsPlaces($secondsDecimalPlaces);
+	}
+
+	/**
+	 * @param int|null $decimalPlaces decimal places of the degrees (3 to 10), or of the seconds in degrees, minutes
+	 * and seconds (0 to 3), null for the default of the constructor
 	 */
 	public function format(
 		float $latitude,
@@ -45,32 +57,25 @@ final class Formatter
 				$latitude,
 				$longitude,
 				false,
-				$decimalPlaces ?? self::DEFAULT_DECIMAL_DEGREES_PLACES,
+				$decimalPlaces ?? $this->decimalPlaces,
 			),
 			Notation::SignedDecimal => $this->formatDecimal(
 				$latitude,
 				$longitude,
 				true,
-				$decimalPlaces ?? self::DEFAULT_DECIMAL_DEGREES_PLACES,
+				$decimalPlaces ?? $this->decimalPlaces,
 			),
 			Notation::DegreesMinutesSeconds => $this->formatDegreesMinutesSeconds(
 				$latitude,
 				$longitude,
-				$decimalPlaces ?? self::DEFAULT_SECONDS_PLACES,
+				$decimalPlaces ?? $this->secondsDecimalPlaces,
 			),
 		};
 	}
 
 	private function formatDecimal(float $latitude, float $longitude, bool $signed, int $decimalPlaces): string
 	{
-		if ($decimalPlaces < self::MIN_DECIMAL_DEGREES_PLACES || $decimalPlaces > self::MAX_DECIMAL_DEGREES_PLACES) {
-			throw new InvalidArgumentException(sprintf(
-				'Decimal degrees need %d to %d decimal places, %d given.',
-				self::MIN_DECIMAL_DEGREES_PLACES,
-				self::MAX_DECIMAL_DEGREES_PLACES,
-				$decimalPlaces,
-			));
-		}
+		$this->checkDecimalDegreesPlaces($decimalPlaces);
 
 		$latitude = $this->roundDegrees($latitude, $decimalPlaces, self::LATITUDE_LIMIT, 'latitude');
 		$longitude = $this->roundDegrees($longitude, $decimalPlaces, self::LONGITUDE_LIMIT, 'longitude');
@@ -116,6 +121,29 @@ final class Formatter
 
 	private function formatDegreesMinutesSeconds(float $latitude, float $longitude, int $decimalPlaces): string
 	{
+		$this->checkSecondsPlaces($decimalPlaces);
+
+		return sprintf(
+			'%s, %s',
+			$this->formatSeconds($latitude, $decimalPlaces, self::LATITUDE_LIMIT, 'latitude', 'N', 'S'),
+			$this->formatSeconds($longitude, $decimalPlaces, self::LONGITUDE_LIMIT, 'longitude', 'E', 'W'),
+		);
+	}
+
+	private function checkDecimalDegreesPlaces(int $decimalPlaces): void
+	{
+		if ($decimalPlaces < self::MIN_DECIMAL_DEGREES_PLACES || $decimalPlaces > self::MAX_DECIMAL_DEGREES_PLACES) {
+			throw new InvalidArgumentException(sprintf(
+				'Decimal degrees need %d to %d decimal places, %d given.',
+				self::MIN_DECIMAL_DEGREES_PLACES,
+				self::MAX_DECIMAL_DEGREES_PLACES,
+				$decimalPlaces,
+			));
+		}
+	}
+
+	private function checkSecondsPlaces(int $decimalPlaces): void
+	{
 		if ($decimalPlaces < 0 || $decimalPlaces > self::MAX_SECONDS_PLACES) {
 			throw new InvalidArgumentException(sprintf(
 				'Seconds need 0 to %d decimal places, %d given.',
@@ -123,12 +151,6 @@ final class Formatter
 				$decimalPlaces,
 			));
 		}
-
-		return sprintf(
-			'%s, %s',
-			$this->formatSeconds($latitude, $decimalPlaces, self::LATITUDE_LIMIT, 'latitude', 'N', 'S'),
-			$this->formatSeconds($longitude, $decimalPlaces, self::LONGITUDE_LIMIT, 'longitude', 'E', 'W'),
-		);
 	}
 
 	/** @param callable(float, int): string $formatAbsolute */

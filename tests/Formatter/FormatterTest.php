@@ -109,6 +109,118 @@ class FormatterTest extends TestCase
 		);
 	}
 
+	#[DataProvider('getDataForFormatWithConstructorDecimalPlaces')]
+	public function testFormatWithConstructorDecimalPlaces(
+		int $defaultDecimalPlaces,
+		int $defaultSecondsDecimalPlaces,
+		Notation $notation,
+		?int $decimalPlaces,
+		string $expected,
+	): void {
+		$formatter = new Formatter($defaultDecimalPlaces, $defaultSecondsDecimalPlaces);
+
+		$this->assertSame($expected, $formatter->format(50.087654, -14.421234, $notation, $decimalPlaces));
+	}
+
+	/** @return array<string, array{int, int, Notation, ?int, string}> */
+	public static function getDataForFormatWithConstructorDecimalPlaces(): array
+	{
+		$hemisphere = Notation::HemisphereDecimal;
+		$dms = Notation::DegreesMinutesSeconds;
+
+		return [
+			'hemisphere, default of the constructor' => [3, 2, $hemisphere, null, 'N 50.088, W 14.421'],
+			'signed, default of the constructor' => [3, 2, Notation::SignedDecimal, null, '50.088, -14.421'],
+			'hemisphere, more decimal places of the method' => [3, 2, $hemisphere, 6, 'N 50.087654, W 14.421234'],
+			'hemisphere, eight in the constructor' => [8, 2, $hemisphere, null, 'N 50.08765400, W 14.42123400'],
+			'hemisphere, fewer decimal places of the method' => [8, 2, $hemisphere, 4, 'N 50.0877, W 14.4212'],
+			'seconds, default of the constructor' => [5, 0, $dms, null, 'N 50° 5\' 16", W 14° 25\' 16"'],
+			'seconds, three in the constructor' => [5, 3, $dms, null, 'N 50° 5\' 15.554", W 14° 25\' 16.442"'],
+			'seconds, more decimal places of the method' => [5, 0, $dms, 3, 'N 50° 5\' 15.554", W 14° 25\' 16.442"'],
+			'seconds, fewer decimal places of the method' => [5, 3, $dms, 0, 'N 50° 5\' 16", W 14° 25\' 16"'],
+			'seconds ignore decimal places of the degrees' => [3, 2, $dms, null, 'N 50° 5\' 15.55", W 14° 25\' 16.44"'],
+		];
+	}
+
+	public function testFormatWholeDegreesWithConstructorDecimalPlaces(): void
+	{
+		// minutes have one decimal place less than the degrees
+		$this->assertSame('N 50° 0.00\', E 14° 24.00\'', (new Formatter(3))->format(50.0, 14.4));
+	}
+
+	#[DataProvider('getDataForConstructorRejectsDecimalPlaces')]
+	public function testConstructorRejectsDecimalPlaces(
+		int $decimalPlaces,
+		int $secondsDecimalPlaces,
+		string $message,
+	): void {
+		try {
+			new Formatter($decimalPlaces, $secondsDecimalPlaces);
+			$this->fail('The formatter accepted the decimal places.');
+		} catch (InvalidArgumentException $exception) {
+			$this->assertSame(InvalidArgumentException::class, $exception::class);
+			$this->assertSame($message, $exception->getMessage());
+		}
+	}
+
+	/** @return array<string, array{int, int, string}> */
+	public static function getDataForConstructorRejectsDecimalPlaces(): array
+	{
+		return [
+			'degrees, two' => [2, 2, 'Decimal degrees need 3 to 10 decimal places, 2 given.'],
+			'degrees, eleven' => [11, 2, 'Decimal degrees need 3 to 10 decimal places, 11 given.'],
+			'degrees, negative' => [-1, 2, 'Decimal degrees need 3 to 10 decimal places, -1 given.'],
+			'seconds, negative' => [5, -1, 'Seconds need 0 to 3 decimal places, -1 given.'],
+			'seconds, four' => [5, 4, 'Seconds need 0 to 3 decimal places, 4 given.'],
+		];
+	}
+
+	#[DataProvider('getDataForConstructorAcceptsDecimalPlaces')]
+	public function testConstructorAcceptsDecimalPlaces(int $decimalPlaces, int $secondsDecimalPlaces): void
+	{
+		$formatter = new Formatter($decimalPlaces, $secondsDecimalPlaces);
+
+		$this->assertSame(
+			sprintf('N %s, E %s', number_format(50.5, $decimalPlaces), number_format(14.5, $decimalPlaces)),
+			$formatter->format(50.5, 14.5),
+		);
+	}
+
+	/** @return array<string, array{int, int}> */
+	public static function getDataForConstructorAcceptsDecimalPlaces(): array
+	{
+		return [
+			'minimum' => [3, 0],
+			'maximum' => [10, 3],
+		];
+	}
+
+	#[DataProvider('getDataForParserReadsFormatterWithTheSameDecimalPlaces')]
+	public function testParserReadsFormatterWithTheSameDecimalPlaces(
+		float $latitude,
+		float $longitude,
+		Notation $notation,
+	): void {
+		$formatted = (new Formatter(decimalPlaces: 5))->format($latitude, $longitude, $notation);
+		$coordinates = (new Parser(decimalPlaces: 5))->parse($formatted);
+
+		$this->assertSame(round($latitude, 5), (float) $coordinates->getDecimalLatitude(), $formatted);
+		$this->assertSame(round($longitude, 5), (float) $coordinates->getDecimalLongitude(), $formatted);
+	}
+
+	/** @return array<string, array{float, float, Notation}> */
+	public static function getDataForParserReadsFormatterWithTheSameDecimalPlaces(): array
+	{
+		return [
+			'google maps precision' => [49.936752169181595, 14.88130750552173, Notation::HemisphereDecimal],
+			'southern and western' => [-33.45, -70.666666, Notation::HemisphereDecimal],
+			'signed' => [50.087654, -14.421234, Notation::SignedDecimal],
+			'one whole coordinate' => [50.0, 14.4, Notation::HemisphereDecimal],
+			'rounded to whole' => [49.999999, 14.123456, Notation::SignedDecimal],
+			'near the limits' => [89.99999, -179.99999, Notation::HemisphereDecimal],
+		];
+	}
+
 	#[DataProvider('getDataForParserReadsFormattedDecimalDegrees')]
 	public function testParserReadsFormattedDecimalDegrees(
 		float $latitude,

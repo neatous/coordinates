@@ -171,6 +171,66 @@ class ParserTest extends TestCase
 		];
 	}
 
+	#[DataProvider('getDataForParseWithConstructorDecimalPlaces')]
+	public function testParseWithConstructorDecimalPlaces(
+		int $defaultDecimalPlaces,
+		?int $decimalPlaces,
+		string $decimalLatitude,
+		string $decimalLongitude,
+	): void {
+		$result = (new Parser($defaultDecimalPlaces))->parse(
+			'49.936752169181595, 14.88130750552173',
+			$decimalPlaces,
+		);
+		$this->assertSame($decimalLatitude, $result->getDecimalLatitude());
+		$this->assertSame($decimalLongitude, $result->getDecimalLongitude());
+	}
+
+	/** @return array<string, array{int, ?int, string, string}> */
+	public static function getDataForParseWithConstructorDecimalPlaces(): array
+	{
+		return [
+			'default of the constructor' => [5, null, '49.93675', '14.88131'],
+			'fewer decimal places of the method' => [5, 3, '49.937', '14.881'],
+			'more decimal places of the method' => [5, 10, '49.9367521692', '14.8813075055'],
+			'the same decimal places of the method' => [5, 5, '49.93675', '14.88131'],
+			'no decimal places of the method' => [5, 0, '50', '15'],
+			'no decimal places in the constructor' => [0, null, '50', '15'],
+			'more decimal places than no decimal places' => [0, 10, '49.9367521692', '14.8813075055'],
+			'maximum in the constructor' => [10, null, '49.9367521692', '14.8813075055'],
+		];
+	}
+
+	public function testParseWithoutConstructorArgumentKeepsTheMaximum(): void
+	{
+		$result = (new Parser())->parse('49.936752169181595, 14.88130750552173');
+		$this->assertSame('49.9367521692', $result->getDecimalLatitude());
+		$this->assertSame('14.8813075055', $result->getDecimalLongitude());
+	}
+
+	#[DataProvider('getDataForParseRejectsDecimalPlaces')]
+	public function testConstructorRejectsDecimalPlaces(int $decimalPlaces): void
+	{
+		try {
+			new Parser($decimalPlaces);
+			$this->fail('The parser accepted the decimal places.');
+		} catch (InvalidArgumentException $exception) {
+			$this->assertInstanceOf(\InvalidArgumentException::class, $exception);
+			$this->assertSame(
+				sprintf('Decimal places must be 0 to 10, %d given.', $decimalPlaces),
+				$exception->getMessage(),
+			);
+		}
+	}
+
+	#[DataProvider('getDataForParseRejectsDecimalPlaces')]
+	public function testParseRejectsDecimalPlacesWithConstructorDefault(int $decimalPlaces): void
+	{
+		$this->expectException(InvalidArgumentException::class);
+		$this->expectExceptionMessage(sprintf('Decimal places must be 0 to 10, %d given.', $decimalPlaces));
+		(new Parser(5))->parse('50.123, 10.123', $decimalPlaces);
+	}
+
 	#[DataProvider('getDataForParseRejectsRangeAfterRounding')]
 	public function testParseRejectsRangeAfterRounding(string $input, string $message): void
 	{

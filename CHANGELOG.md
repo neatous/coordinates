@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0
+
+Added:
+
+- `Parser` and `Formatter` take the default number of decimal places in the constructor:
+  `new Parser(decimalPlaces: 5)` (0 to 10, 10 by default) and
+  `new Formatter(decimalPlaces: 5, secondsDecimalPlaces: 2)` (3 to 10 and 0 to 3, the defaults of 1.0.0). An
+  application configures them once, for example in a dependency injection container, and calls `parse($value)` and
+  `format($latitude, $longitude)`. A number given to `parse()` or `format()` still overrides the default, and
+  a number out of the range throws `Neatous\Coordinates\InvalidArgumentException` when the object is created.
+- The `$decimalPlaces` argument of `Parser::parse()` accepts `null` for the default of the constructor. Its default
+  value is now `null` instead of `10`, the result is the same.
+
 ## 1.0.0
 
 First release, extracted from the Furtodo applications.

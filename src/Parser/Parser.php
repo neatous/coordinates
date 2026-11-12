@@ -16,15 +16,18 @@ final class Parser
 	// places show the error of the float, such as 50.08765000000001; the limit is 10, the same as in the formatter
 	private const int MAX_DECIMAL_PLACES = 10;
 
-	public function parse(string $input, int $decimalPlaces = self::MAX_DECIMAL_PLACES): Coordinates
+	/** @param int $decimalPlaces default maximum number of decimal places of the result, 0 to 10 */
+	public function __construct(
+		private readonly int $decimalPlaces = self::MAX_DECIMAL_PLACES,
+	) {
+		$this->checkDecimalPlaces($decimalPlaces);
+	}
+
+	/** @param int|null $decimalPlaces maximum number of decimal places of the result, null for the default one */
+	public function parse(string $input, ?int $decimalPlaces = null): Coordinates
 	{
-		if ($decimalPlaces < 0 || $decimalPlaces > self::MAX_DECIMAL_PLACES) {
-			throw new InvalidArgumentException(sprintf(
-				'Decimal places must be 0 to %d, %d given.',
-				self::MAX_DECIMAL_PLACES,
-				$decimalPlaces,
-			));
-		}
+		$decimalPlaces ??= $this->decimalPlaces;
+		$this->checkDecimalPlaces($decimalPlaces);
 
 		$coordsString = trim(preg_replace('/\s+/u', ' ', $input) ?? '');
 
@@ -447,6 +450,17 @@ final class Parser
 			number_format($ddLat, $places, '.', ''),
 			number_format($ddLng, $places, '.', ''),
 		);
+	}
+
+	private function checkDecimalPlaces(int $decimalPlaces): void
+	{
+		if ($decimalPlaces < 0 || $decimalPlaces > self::MAX_DECIMAL_PLACES) {
+			throw new InvalidArgumentException(sprintf(
+				'Decimal places must be 0 to %d, %d given.',
+				self::MAX_DECIMAL_PLACES,
+				$decimalPlaces,
+			));
+		}
 	}
 
 	/**
